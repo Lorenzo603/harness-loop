@@ -5,12 +5,19 @@ $ErrorActionPreference = "Stop"
 $src = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dest = Join-Path (Get-Location) ".harness-loop"
 
-foreach ($dir in @("", "tasks", "archived-tasks", "backlog")) {
+foreach ($dir in @("", "tasks", "archived-tasks", "backlog", "task-assets")) {
     New-Item -ItemType Directory -Force -Path (Join-Path $dest $dir) | Out-Null
 }
 foreach ($file in @("runner.py", "selftest.py", "rules.md", ".gitignore", "config.example.json", "README.md", "backlog\sample-task.md")) {
     Copy-Item -Force (Join-Path $src $file) (Join-Path $dest $file)
     Write-Host "  updated .harness-loop\$file"
+}
+# task-assets: seed the folder and its ignore rules only when missing; never overwrite
+foreach ($file in @("task-assets\.gitignore", "task-assets\.gitkeep")) {
+    if (-not (Test-Path (Join-Path $dest $file))) {
+        Copy-Item (Join-Path $src $file) (Join-Path $dest $file)
+        Write-Host "  seeded .harness-loop\$file"
+    }
 }
 if (-not (Test-Path (Join-Path $dest "config.json"))) {
     Copy-Item (Join-Path $src "config.example.json") (Join-Path $dest "config.json")

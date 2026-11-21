@@ -17,6 +17,7 @@ harness-loop/              # this repo; copied into a target repo as .harness-lo
 ├── integrate.ps1          # optional: copy this harness into a target repo (.ps1)
 ├── integrate.sh           # optional: same for bash/zsh
 ├── backlog/               # parking lot for future task files (sample-task.md included)
+├── task-assets/           # external assets for the tasks (images, files); folder committed, contents gitignored
 ├── tasks/                 # one .md file per task, frontmatter = state
 ├── archived-tasks/        # completed tasks, moved here automatically by the runner
 ├── sessions/              # Pi session files (created per run, gitignored)
@@ -56,7 +57,8 @@ your repository root**, because `runner.py` derives the repo root from its own l
    bash /path/to/harness-loop/integrate.sh
    ```
    Or do it by hand: copy `runner.py`, `selftest.py`, `rules.md`, `.gitignore`,
-   `config.example.json` and the `tasks/`, `archived-tasks/`, `backlog/` directories into
+   `config.example.json` and the `tasks/`, `archived-tasks/`, `backlog/`, `task-assets/`
+   directories into
    `<repo>/.harness-loop/`. A `git subtree`/submodule of this repo mounted at `.harness-loop`
    also works and lets you pull harness updates into every project with one command.
 
@@ -78,6 +80,10 @@ your repository root**, because `runner.py` derives the repo root from its own l
 
 4. **Add work**: copy `backlog/sample-task.md` to `tasks/NN-slug.md`, fill in the task, run
    `python .harness-loop\runner.py`. Triage idea files that are not ready yet in `backlog/`.
+   Task assets — reference images, mockups or other files from a task — go in
+   `task-assets/` (referenced as `@.harness-loop/task-assets/<file>`). The folder is committed
+   via a `.gitkeep` placeholder, but its contents are gitignored: assets are local-only
+   scratch material, never shareable via git.
 
 5. **Commit it** — commit `.harness-loop/` (including your `config.json`, which belongs with
    the code, and any sample tasks). The folder's own `.gitignore` excludes the per-run
