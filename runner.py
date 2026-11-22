@@ -1173,22 +1173,61 @@ def select_tasks(args: argparse.Namespace) -> list[Task]:
         accepted.update({FAILED, BLOCKED})
 
     wanted = set(args.only or [])
-    selected: list[Task] = []
-    for task in tasks:
-        if wanted and not any(w == task.slug or task.slug.endswith("-" + w) for w in wanted):
-            continue
-        if task.status not in accepted:
-            continue
-        unmet = [
-            dep for dep in task.depends_on
-            if by_slug.get(dep) is None or by_slug[dep].status != DONE
-        ]
-        if unmet:
-            say(f"skip  {task.slug}: waiting on {', '.join(unmet)}", "warning")
-            continue
-        selected.append(task)
+    candidates = [
+        task for task in tasks
+        if (not wanted or any(w == task.slug or task.slug.endswith("-" + w) for w in wanted))
+        and task.status in accepted
+    ]
 
-    return selected[: args.limit] if args.limit else selected
+    # A task is queued behind the tasks it depends on, not skipped: as long as a
+    # prerequisite gets its turn earlier in this run, it will be done before the
+    # dependent starts. Only a precondition this run can never satisfy — unknown,
+    # or left blocked/failed/filtered out — still drops the task (transitively, so
+    # anything waiting on it drops too).
+    runnable = {task.slug for task in candidates}
+    waiting: dict[str, list[str]] = {}
+    changed = True
+    while changed:
+        changed = False
+        for task in candidates:
+            if task.slug not in runnable or task.slug in waiting:
+                continue
+            unmet = [
+                dep for dep in task.depends_on
+                if by_slug.get(dep) is None
+                or (by_slug[dep].status != DONE and dep not in runnable)
+            ]
+            if unmet:
+                waiting[task.slug] = unmet
+                runnable.discard(task.slug)
+                changed = True
+    for task in candidates:
+        if task.slug in waiting:
+            say(f"skip  {task.slug}: waiting on {', '.join(waiting[task.slug])}", "warning")
+
+    # Kahn's algorithm over the remaining tasks, stable in filename order: each
+    # round takes every task whose in-run prerequisites are already placed.
+    ordered: list[Task] = []
+    placed: set[str] = set()
+    pending = [task for task in candidates if task.slug in runnable]
+    while pending:
+        ready = [
+            task for task in pending
+            if all(dep in placed for dep in task.depends_on if dep in runnable)
+        ]
+        if not ready:
+            # A dependency cycle cannot be satisfied in any order: say so, then
+            # queue what is left in filename order rather than dropping it.
+            say("warning: dependency cycle among "
+                f"{', '.join(task.slug for task in pending)}; running them in filename order",
+                "warning")
+            ordered.extend(pending)
+            break
+        ordered.extend(ready)
+        placed.update(task.slug for task in ready)
+        pending = [task for task in pending if task.slug not in placed]
+
+    return ordered[: args.limit] if args.limit else ordered
 
 
 @dataclass
